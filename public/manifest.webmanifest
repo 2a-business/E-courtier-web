@@ -1,0 +1,10 @@
+{
+  "name": "E-Courtier",
+  "short_name": "E-Courtier",
+  "lang": "fr",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f5fb",
+  "theme_color": "#6d5df5",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
