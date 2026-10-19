@@ -105,6 +105,19 @@ describe("Assistant", () => {
     expect(screen.getByRole("link", { name: /Appartement 3 pièces à Fann Hock/ })).toHaveAttribute("href", `/logements/${LISTING_ID}`);
     expect(calls.find((c) => c.path.endsWith("/assistant/chat/"))!.body).toMatchObject({ message: "F3 Fann Hock" });
     expect(screen.getByText(/Mode simplifié/)).toBeInTheDocument();
+    expect(screen.getByText("Analyse simplifiée par règles (sans IA)")).toBeInTheDocument();
+  });
+  it("n'attribue à l'IA que les réponses réellement analysées par le fournisseur", async () => {
+    mockFetch((url) => {
+      if (url.pathname.endsWith("/assistant/info/")) return { body: { llm_enabled: true, provider: "gemini", suggestions: [], max_message_chars: 500 } };
+      if (url.pathname.endsWith("/assistant/chat/")) {
+        return { body: { conversation_id: "c1", reply: "Aucune annonce. (Assistant IA momentanément indisponible : analyse simplifiée de votre demande.)", criteria: {}, results: [], alternatives: [], mode: "fallback", remaining_today: 9 } };
+      }
+    });
+    renderRoute(<AssistantPage />, { path: "/assistant", route: "/assistant" });
+    await userEvent.type(screen.getByLabelText("Votre message"), "villa{enter}");
+    expect(await screen.findByText("IA indisponible : analyse simplifiée par règles")).toBeInTheDocument();
+    expect(screen.queryByText("Critères analysés par l'IA")).not.toBeInTheDocument();
   });
   it("explique le dépassement de quota", async () => {
     mockFetch((url) => url.pathname.endsWith("/assistant/chat/")
@@ -172,6 +185,24 @@ describe("Paiement", () => {
     expect(screen.getAllByText("285 000 FCFA").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /Payer avec Wave/ })).toBeInTheDocument();
     expect(screen.getByText(/ne vous demandera jamais votre code secret/)).toBeInTheDocument();
+    // Tant que Wave n'a pas été ouvert, aucune déclaration de paiement n'est proposée.
+    expect(screen.queryByRole("button", { name: "Déclarer mon paiement" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Après avoir payé dans Wave/)).toBeInTheDocument();
+  });
+
+  it("propose la déclaration une fois le paiement Wave démarré", async () => {
+    const started = tx({ attempts: [{ id: 1, provider: "WAVE_LINK", status: "INITIATED", status_label: "Redirigé", provider_reference: "", is_simulated: false, created_at: "2026-10-14T10:05:00Z" }] });
+    loggedIn((url) => (url.pathname.endsWith("/transactions/config/") ? { body: config } : url.pathname.endsWith("/transactions/t1/") ? { body: started } : undefined));
+    renderRoute(<PaymentPage />, { path: "/paiement/:id", route: "/paiement/t1" });
+    expect(await screen.findByRole("button", { name: "Déclarer mon paiement" })).toBeInTheDocument();
+  });
+
+  it("n'offre ni paiement ni déclaration sans lien marchand", async () => {
+    loggedIn((url) => (url.pathname.endsWith("/transactions/config/") ? { body: { ...config, wave_configured: false, simulation_enabled: false } } : url.pathname.endsWith("/transactions/t1/") ? { body: tx({}) } : undefined));
+    renderRoute(<PaymentPage />, { path: "/paiement/:id", route: "/paiement/t1" });
+    expect(await screen.findByText(/n'est pas configuré sur cet environnement/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Payer avec Wave/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Déclarer mon paiement" })).not.toBeInTheDocument();
   });
 
   it("distingue clairement un paiement simulé", async () => {

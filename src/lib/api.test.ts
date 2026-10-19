@@ -38,4 +38,16 @@ describe("client API", () => {
     mockFetch((url) => (url.pathname.endsWith("/auth/refresh/") ? { status: 429, body: {} } : { status: 401, body: { code: "not_authenticated", detail: "Expiré" } }));
     await expect(api("/auth/me/")).rejects.toMatchObject({ status: 401 });
   });
+
+  it("refuse une réponse 200 non JSON au lieu de renvoyer null", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("<!doctype html><html></html>", { status: 200, headers: { "Content-Type": "text/html" } })));
+    const error = (await api("/search/listings/").catch((e) => e)) as ApiError;
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.code).toBe("invalid_response");
+  });
+
+  it("accepte une réponse 204 sans corps", async () => {
+    mockFetch(() => ({ status: 204 }));
+    await expect(api("/listings/x/", { method: "DELETE" })).resolves.toBeUndefined();
+  });
 });

@@ -27,6 +27,7 @@ const STATUS_TONES: Record<string, Tone> = {
   PAID: "green", FAILED: "red", REFUNDED: "blue",
   PENDING_SIGNATURE: "amber", SIGNED: "green",
   OPEN: "amber", IN_REVIEW: "blue", RESOLVED: "green", DISMISSED: "neutral",
+  INCOMPLETE: "neutral", READY: "brand", SUBMITTED: "blue", UNDER_REVIEW: "blue", INFO_REQUESTED: "amber", ACCEPTED: "green",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -36,6 +37,8 @@ const STATUS_LABELS: Record<string, string> = {
   PAID: "Payée", FAILED: "Échouée", REFUNDED: "Remboursée",
   PENDING_SIGNATURE: "À signer", SIGNED: "Signé",
   OPEN: "Ouvert", IN_REVIEW: "En examen", RESOLVED: "Traité", DISMISSED: "Classé",
+  INCOMPLETE: "Incomplet", READY: "Prêt à transmettre", SUBMITTED: "Transmis", UNDER_REVIEW: "En cours d'examen",
+  INFO_REQUESTED: "Complément demandé", ACCEPTED: "Accepté",
 };
 
 export function StatusBadge({ status, label }: { status: string; label?: string }) {

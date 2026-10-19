@@ -221,3 +221,64 @@ export interface VerificationRequest {
   listing?: ListingCard;
   submitted_by?: { id: number; name: string; email: string; role: Role };
 }
+
+export type ApplicationStatus = "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "INFO_REQUESTED" | "ACCEPTED" | "REJECTED";
+/** État affiché : un brouillon est « INCOMPLETE » ou « READY » (complétude calculée par le serveur). */
+export type ApplicationState = Exclude<ApplicationStatus, "DRAFT"> | "INCOMPLETE" | "READY";
+
+export interface RentalApplicationSummary {
+  id: string;
+  listing: ListingCard;
+  visit: number;
+  status: ApplicationStatus;
+  status_label: string;
+  state: ApplicationState;
+  customer_name: string;
+  submitted_at: string | null;
+  decided_at: string | null;
+  updated_at: string;
+}
+
+export interface ApplicationDocument {
+  id: number;
+  doc_type: string;
+  doc_type_label: string;
+  original_name: string;
+  content_type: string;
+  size: number;
+  uploaded_at: string;
+  submitted: boolean;
+}
+
+export interface RentalApplication extends RentalApplicationSummary {
+  profession: string;
+  employer: string;
+  monthly_income_xof: number | null;
+  household_size: number | null;
+  move_in_date: string | null;
+  has_guarantor: boolean;
+  guarantor_name: string;
+  message: string;
+  consent_accepted_at: string | null;
+  first_submitted_at: string | null;
+  info_request_message: string;
+  decision_reason: string;
+  documents: ApplicationDocument[];
+  events: { event: string; from_status: string; to_status: string; note: string; actor_name: string | null; created_at: string }[];
+  requirements: {
+    required_documents: { types: string[]; label: string; satisfied: boolean }[];
+    optional_documents: { type: string; label: string; provided: boolean }[];
+    missing_documents: string[];
+    missing_fields: string[];
+    is_complete: boolean;
+  };
+  payment: {
+    fee_amount: number;
+    currency: "XOF";
+    wave_configured: boolean;
+    transaction: { id: string; reference: string; status: string; status_label: string; total_amount: number; fee_amount: number; is_simulated: boolean; paid_at: string | null } | null;
+  };
+  my_role: "customer" | "responsible" | "admin";
+  internal_notes: { id: number; text: string; author_name: string; created_at: string }[] | null;
+  can_edit: boolean;
+}

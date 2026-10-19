@@ -14,6 +14,7 @@ const ListingPage = lazy(() => import("./pages/ListingPage"));
 const VisitNewPage = lazy(() => import("./pages/VisitNewPage"));
 const VisitDetailPage = lazy(() => import("./pages/VisitDetailPage"));
 const PaymentPage = lazy(() => import("./pages/PaymentPage"));
+const ApplicationPage = lazy(() => import("./pages/ApplicationPage"));
 const ContractPage = lazy(() => import("./pages/ContractPage"));
 const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
 const ListingEditorPage = lazy(() => import("./pages/dashboard/ListingEditorPage"));
@@ -49,6 +50,7 @@ export const routes = [
       { path: "/logements/:id", element: page(<ListingPage />) },
       { path: "/visites/nouveau", element: priv(<VisitNewPage />) },
       { path: "/visites/:id", element: priv(<VisitDetailPage />) },
+      { path: "/dossiers/:id", element: priv(<ApplicationPage />) },
       { path: "/paiement", element: priv(<PaymentPage />) },
       { path: "/paiement/:id", element: priv(<PaymentPage />) },
       { path: "/contrats/:id", element: priv(<ContractPage />) },
