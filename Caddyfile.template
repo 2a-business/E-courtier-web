@@ -1,0 +1,58 @@
+# Caddyfile utilisé par Railpack sur Railway (remplace son modèle par défaut, dont il reprend la base).
+# Ajoute les en-têtes de sécurité et règles de cache définies dans vercel.json, ignoré sur Railway.
+# {{.DIST_DIR}} est renseigné par Railpack (/app/dist).
+
+{
+	admin off
+	persist_config off
+	auto_https off
+
+	log {
+		format json
+	}
+
+	servers {
+		trusted_proxies static private_ranges 100.0.0.0/8 # proxy Railway
+	}
+}
+
+:{$PORT:80} {
+	log {
+		format json
+	}
+
+	respond /health 200
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=2592000"
+		-Server
+	}
+
+	# Fichiers versionnés par Vite (nom avec empreinte) : cache long.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	# Tout le reste (index.html, routes du SPA, sw.js, manifeste) est revalidé à chaque visite pour qu'un
+	# déploiement soit pris en compte immédiatement. Le matcher voit le chemin demandé, avant la réécriture
+	# try_files vers /index.html : d'où la règle « tout sauf /assets/ ».
+	@revalidate not path /assets/*
+	header @revalidate Cache-Control "no-cache"
+
+	root * {{.DIST_DIR}}
+
+	encode {
+		gzip
+		zstd
+	}
+
+	# Fichier existant, sinon index.html (routes du SPA, ex. /logements/123).
+	try_files {path} {path}.html {path}/index.html /index.html
+
+	file_server {
+		hide .git
+		hide .env*
+	}
+}

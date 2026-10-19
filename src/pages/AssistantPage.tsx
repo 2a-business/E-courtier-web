@@ -20,6 +20,13 @@ interface ChatMessage {
   error?: boolean;
 }
 
+// Chaque réponse indique comment la demande a été analysée : l'analyse par règles n'est jamais présentée comme de l'IA.
+const MODE_LABELS: Record<string, string> = {
+  llm: "Critères analysés par l'IA",
+  rules: "Analyse simplifiée par règles (sans IA)",
+  fallback: "IA indisponible : analyse simplifiée par règles",
+};
+
 const WELCOME: ChatMessage = {
   id: "welcome",
   role: "assistant",
@@ -57,6 +64,7 @@ function Bubble({ message }: { message: ChatMessage }) {
         <span className="sr-only">{mine ? "Vous : " : "Assistant : "}</span>
         {message.text}
       </div>
+      {!mine && message.mode && <p className="px-1 text-[11px] text-muted">{MODE_LABELS[message.mode] ?? MODE_LABELS.rules}</p>}
       {!!cards?.length && (
         <div className="-mx-1 flex max-w-full gap-3 overflow-x-auto px-1 pb-2" aria-label="Logements proposés">
           {cards.map((l) => <ResultCard key={l.id} listing={l} />)}

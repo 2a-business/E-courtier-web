@@ -122,7 +122,9 @@ describe("Suivi de visite", () => {
   it("propose au client de constituer son dossier après confirmation", async () => {
     as("CUSTOMER", (url) => (url.pathname.endsWith("/visits/3/") ? { body: visit({ my_role: "customer", status: "CONFIRMED", status_label: "Confirmée", address: "Rue 10" }) } : undefined));
     renderRoute(<RequireAuth><VisitDetailPage /></RequireAuth>, { path: "/visites/:id", route: "/visites/3" });
-    expect(await screen.findByRole("link", { name: "Constituer mon dossier" })).toHaveAttribute("href", `/paiement?logement=${ID}`);
+    // Location : le dossier locatif s'ouvre via l'API ; le paiement Wave reste accessible séparément.
+    expect(await screen.findByRole("button", { name: "Constituer mon dossier" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ouvrir le dossier de paiement" })).toHaveAttribute("href", `/paiement?logement=${ID}`);
   });
 });
 

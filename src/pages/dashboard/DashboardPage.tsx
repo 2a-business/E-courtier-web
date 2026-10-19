@@ -15,7 +15,7 @@ import { EmptyState, ErrorState, InlineError, Skeleton } from "../../components/
 import { Pagination } from "../../components/ui/Tabs";
 import { api } from "../../lib/api";
 import { fcfa, formatDate, formatDayLong, formatTime } from "../../lib/format";
-import type { Contract, OwnerListing, Paginated, Transaction, Visit } from "../../lib/types";
+import type { Contract, OwnerListing, Paginated, RentalApplicationSummary, Transaction, Visit } from "../../lib/types";
 
 type Tab = "apercu" | "annonces" | "visites" | "dossiers" | "contrats" | "avis";
 
@@ -163,6 +163,37 @@ export function TransactionList({ role }: { role: "owner" | "customer" }) {
   );
 }
 
+function ApplicationList({ role }: { role: "customer" | "owner" }) {
+  const path = role === "owner" ? "/applications/received/" : "/applications/";
+  const query = useQuery({ queryKey: ["applications", role], queryFn: () => api<RentalApplicationSummary[]>(path) });
+  if (query.isPending) return <Skeleton className="h-40" />;
+  if (query.isError) return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
+  if (!query.data.length) {
+    return role === "owner"
+      ? <EmptyState title="Aucun dossier reçu" text="Les dossiers locatifs transmis par les candidats apparaîtront ici." />
+      : <EmptyState title="Aucun dossier locatif" text="Après une visite confirmée, constituez votre dossier depuis la page de la visite." />;
+  }
+  return (
+    <ul className="space-y-2">
+      {query.data.map((a) => (
+        <li key={a.id}>
+          <Link to={`/dossiers/${a.id}`} className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-white p-3 hover:border-brand-400">
+            <span className="grid size-11 place-items-center rounded-full bg-brand-50 text-brand-600"><ClipboardList className="size-5" aria-hidden /></span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-semibold">{a.listing.title}</p>
+              <p className="text-sm text-muted">
+                {role === "owner" && `${a.customer_name} · `}
+                {a.submitted_at ? `transmis le ${formatDate(a.submitted_at)}` : "brouillon non transmis"}
+              </p>
+            </div>
+            <StatusBadge status={a.state} label={a.status === "DRAFT" ? undefined : a.status_label} />
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function ContractList() {
   const query = useQuery({ queryKey: ["contracts"], queryFn: () => api<Contract[]>("/contracts/") });
   if (query.isPending) return <Skeleton className="h-40" />;
@@ -287,7 +318,13 @@ export default function DashboardPage() {
         {tab === "apercu" && <Overview />}
         {tab === "annonces" && <MyListings />}
         {tab === "visites" && <VisitList role={manager ? "host" : "customer"} />}
-        {tab === "dossiers" && <TransactionList role={manager ? "owner" : "customer"} />}
+        {tab === "dossiers" && (
+          <div className="space-y-6">
+            <section><SectionTitle title="Dossiers locatifs" /><ApplicationList role={manager ? "owner" : "customer"} /></section>
+            <section><SectionTitle title="Paiements" /><TransactionList role={manager ? "owner" : "customer"} /></section>
+            {manager && <section><SectionTitle title="Mes propres dossiers locatifs" /><ApplicationList role="customer" /></section>}
+          </div>
+        )}
         {tab === "contrats" && <ContractList />}
         {tab === "avis" && <ReceivedReviews />}
         {manager && tab === "visites" && (

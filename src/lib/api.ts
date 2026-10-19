@@ -132,6 +132,9 @@ export async function api<T = unknown>(path: string, options: RequestOptions = {
       res.status >= 500 ? "Le service rencontre un problème. Réessayez dans un instant." : "La requête a échoué.";
     throw new ApiError(res.status, data?.code ?? "error", data?.detail ?? fallback, data?.errors);
   }
+  // Un succès sans JSON (ex. page HTML renvoyée par un proxy, ou VITE_API_URL absente au build) ne doit pas
+  // se transformer en `null` silencieux qui ferait planter les écrans (`data.results` sur null).
+  if (data === null) throw new ApiError(res.status, "invalid_response", "Réponse inattendue du serveur. Réessayez dans un instant.");
   return data as T;
 }
 

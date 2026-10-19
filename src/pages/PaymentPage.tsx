@@ -128,6 +128,8 @@ function Dossier({ id }: { id: string }) {
   if (tx.isError) return <ErrorState error={tx.error} onRetry={() => tx.refetch()} />;
   const t = tx.data;
   const pending = t.status === "PENDING";
+  // La déclaration n'est possible qu'après une redirection réelle vers Wave (le serveur refuse sinon : payment_not_started).
+  const started = !!checkout || !!t.attempts?.some((a) => a.provider === "WAVE_LINK" && (a.status === "INITIATED" || a.status === "CUSTOMER_DECLARED"));
 
   function submitReference(e: FormEvent) {
     e.preventDefault();
@@ -173,11 +175,15 @@ function Dossier({ id }: { id: string }) {
             <InlineError error={wave.error} />
             {checkout && <Notice tone="info">{checkout.instructions} <a href={checkout.url} target="_blank" rel="noopener noreferrer" className="font-semibold underline">Rouvrir Wave</a></Notice>}
 
-            <form onSubmit={submitReference} className="space-y-3 border-t border-line pt-4">
-              <Input label="J'ai payé : identifiant de transaction Wave" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Ex. T_8K2M4QXZ7Y" hint="Visible dans l'historique de votre application Wave. Votre dossier restera « en attente » jusqu'à vérification." pattern="[A-Za-z0-9_\-]{6,64}" />
-              <InlineError error={declare.error} />
-              <Button type="submit" variant="secondary" disabled={reference.trim().length < 6} loading={declare.isPending}>Déclarer mon paiement</Button>
-            </form>
+            {started ? (
+              <form onSubmit={submitReference} className="space-y-3 border-t border-line pt-4">
+                <Input label="J'ai payé : identifiant de transaction Wave" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Ex. T_8K2M4QXZ7Y" hint="Visible dans l'historique de votre application Wave. Votre dossier restera « en attente » jusqu'à vérification." pattern="[A-Za-z0-9_\-]{6,64}" />
+                <InlineError error={declare.error} />
+                <Button type="submit" variant="secondary" disabled={reference.trim().length < 6} loading={declare.isPending}>Déclarer mon paiement</Button>
+              </form>
+            ) : (
+              <p className="border-t border-line pt-4 text-sm text-muted">Après avoir payé dans Wave, vous pourrez indiquer ici l'identifiant de transaction pour vérification.</p>
+            )}
 
             {config.data?.simulation_enabled && (
               <div className="space-y-2 rounded-2xl border border-dashed border-orange-300 bg-orange-50 p-4">

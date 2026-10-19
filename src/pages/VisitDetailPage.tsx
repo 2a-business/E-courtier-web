@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, CheckCircle2, MapPin, Phone } from "lucide-react";
 import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { Stepper } from "../components/Stepper";
 import { StatusBadge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -10,7 +10,7 @@ import { Input } from "../components/ui/Field";
 import { ErrorState, InlineError, Notice, Skeleton } from "../components/ui/States";
 import { api } from "../lib/api";
 import { formatDate, formatDayLong, formatTime } from "../lib/format";
-import type { Visit } from "../lib/types";
+import type { RentalApplication, Visit } from "../lib/types";
 import { ListingHeader, VISIT_STEPS } from "./VisitNewPage";
 
 function stepOf(v: Visit) {
@@ -25,6 +25,12 @@ export default function VisitDetailPage() {
   const qc = useQueryClient();
   const [reason, setReason] = useState("");
   const query = useQuery({ queryKey: ["visits", id], queryFn: () => api<Visit>(`/visits/${id}/`) });
+  const navigate = useNavigate();
+  // Ouvre (ou retrouve) le dossier locatif lié à cette visite ; la règle « visite confirmée » est vérifiée par le serveur.
+  const openApplication = useMutation({
+    mutationFn: () => api<RentalApplication>("/applications/", { body: { visit: Number(id) } }),
+    onSuccess: (app) => navigate(`/dossiers/${app.id}`),
+  });
   const action = useMutation({
     mutationFn: (status: string) => api<Visit>(`/visits/${id}/status/`, { body: { status, reason } }),
     onSuccess: (data) => {
@@ -78,13 +84,27 @@ export default function VisitDetailPage() {
         )}
       </Card>
 
-      {!host && (v.status === "CONFIRMED" || v.status === "COMPLETED") && (
+      {!host && (v.status === "CONFIRMED" || v.status === "COMPLETED") && v.listing.transaction_type === "RENT" && (
+        <Card className="space-y-3 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold">Le logement vous convient ?</p>
+              <p className="text-sm text-muted">Constituez votre dossier locatif (pièces et informations), puis transmettez-le au propriétaire ou à l'agent.</p>
+            </div>
+            <Button loading={openApplication.isPending} onClick={() => openApplication.mutate()}>Constituer mon dossier</Button>
+          </div>
+          <InlineError error={openApplication.error} />
+          <p className="text-sm text-muted">Paiement Wave (frais de dossier affichés séparément) : <Link to={`/paiement?logement=${v.listing.id}`} className="font-semibold text-brand-700 underline">ouvrir le dossier de paiement</Link>.</p>
+        </Card>
+      )}
+
+      {!host && (v.status === "CONFIRMED" || v.status === "COMPLETED") && v.listing.transaction_type !== "RENT" && (
         <Card className="flex flex-wrap items-center justify-between gap-3 p-5">
           <div>
             <p className="font-semibold">Le logement vous convient ?</p>
-            <p className="text-sm text-muted">Constituez votre dossier et réglez via Wave. Frais de dossier : 5 000 FCFA, affichés séparément.</p>
+            <p className="text-sm text-muted">Ouvrez votre dossier de réservation et réglez via Wave. Frais de dossier affichés séparément.</p>
           </div>
-          <Link to={`/paiement?logement=${v.listing.id}`}><Button>Constituer mon dossier</Button></Link>
+          <Link to={`/paiement?logement=${v.listing.id}`}><Button>Ouvrir mon dossier</Button></Link>
         </Card>
       )}
     </div>
