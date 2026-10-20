@@ -16,6 +16,7 @@ interface ChatMessage {
   text: string;
   results?: ListingCard[];
   alternatives?: ListingCard[];
+  relaxed?: string[];
   mode?: string;
   error?: boolean;
 }
@@ -39,6 +40,7 @@ function ResultCard({ listing }: { listing: ListingCard }) {
       <div className="h-32"><ListingCover listing={listing} /></div>
       <div className="space-y-0.5 p-3">
         <p className="line-clamp-2 text-sm font-semibold leading-snug">{listing.title}</p>
+        <p className="text-xs text-muted">{listing.property_type_label} · {listing.transaction_type === "RENT" ? "Location" : "Vente"}</p>
         <p className="text-sm font-bold text-brand-700">{fcfa(listing.price)}<span className="text-xs font-normal text-muted">{priceSuffix(listing.transaction_type)}</span></p>
         <p className="text-xs text-muted">{listing.district} · {listing.rooms} p.{listing.surface_m2 ? ` · ${listing.surface_m2} m²` : ""}</p>
         <div className="flex flex-wrap gap-1 pt-1">
@@ -50,14 +52,26 @@ function ResultCard({ listing }: { listing: ListingCard }) {
   );
 }
 
+function Cards({ listings, label }: { listings: ListingCard[]; label: string }) {
+  return (
+    <div className="max-w-full space-y-1">
+      <p className="px-1 text-xs font-semibold text-muted">{label}</p>
+      <div className="-mx-1 flex max-w-full gap-3 overflow-x-auto px-1 pb-2" aria-label={label}>
+        {listings.map((l) => <ResultCard key={l.id} listing={l} />)}
+      </div>
+    </div>
+  );
+}
+
 function Bubble({ message }: { message: ChatMessage }) {
   const mine = message.role === "user";
-  const cards = message.results?.length ? message.results : message.alternatives;
+  const results = message.results ?? [];
+  const alternatives = message.alternatives ?? [];
   return (
     <li className={cn("flex flex-col gap-2", mine ? "items-end" : "items-start")}>
       <div
         className={cn(
-          "relative max-w-[85%] px-4 py-3 text-[15px] leading-relaxed shadow-sm",
+          "relative max-w-[85%] whitespace-pre-line px-4 py-3 text-[15px] leading-relaxed shadow-sm",
           mine ? "rounded-2xl rounded-tr-sm bg-[#dcf8d4] text-ink" : message.error ? "rounded-2xl rounded-tl-sm bg-red-50 text-red-800" : "rounded-2xl rounded-tl-sm bg-white text-ink",
         )}
       >
@@ -65,10 +79,10 @@ function Bubble({ message }: { message: ChatMessage }) {
         {message.text}
       </div>
       {!mine && message.mode && <p className="px-1 text-[11px] text-muted">{MODE_LABELS[message.mode] ?? MODE_LABELS.rules}</p>}
-      {!!cards?.length && (
-        <div className="-mx-1 flex max-w-full gap-3 overflow-x-auto px-1 pb-2" aria-label="Logements proposés">
-          {cards.map((l) => <ResultCard key={l.id} listing={l} />)}
-        </div>
+      {results.length > 0 && <Cards listings={results} label="Logements correspondant à votre recherche" />}
+      {/* Les alternatives ne sont jamais présentées comme des résultats exacts. */}
+      {alternatives.length > 0 && (
+        <Cards listings={alternatives} label={`Annonces proches${message.relaxed?.length ? ` (critères élargis : ${message.relaxed.join(", ")})` : ""}`} />
       )}
     </li>
   );
@@ -115,7 +129,7 @@ export default function AssistantPage() {
     onSuccess: (data) => {
       setConversationId(data.conversation_id);
       sessionStorage.setItem(STORAGE_KEY, data.conversation_id);
-      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", text: data.reply, results: data.results, alternatives: data.alternatives, mode: data.mode }]);
+      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", text: data.reply, results: data.results, alternatives: data.alternatives, relaxed: data.relaxed, mode: data.mode }]);
     },
     onError: (error) => {
       const text =
