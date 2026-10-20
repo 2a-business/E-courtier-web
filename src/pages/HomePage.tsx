@@ -114,6 +114,32 @@ function QuickSearch() {
 
 const CATEGORIES = [{ value: "", label: "Tous" }, ...PROPERTY_TYPES.slice(0, 5)];
 
+// Pixel transparent servi à la largeur où un visuel n'est pas affiché : le navigateur ne télécharge pas l'image
+// masquée (une <img> en display:none est sinon téléchargée quand même).
+const BLANK = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+/** Accueil mobile et tablette (< lg) : visuel promotionnel, qui porte déjà le titre, l'accroche et les atouts. */
+function MobileHero() {
+  return (
+    <div className="lg:hidden">
+      <h1 className="sr-only">Trouvez le logement de vos rêves au Sénégal.</h1>
+      <picture>
+        <source media="(min-width: 1024px)" srcSet={BLANK} />
+        <source type="image/webp" srcSet="/accueil-mobile-640.webp 640w, /accueil-mobile-1024.webp 1024w" sizes="(max-width: 576px) 100vw, 576px" />
+        <img
+          src="/accueil-mobile-1024.jpg"
+          width={1024}
+          height={1536}
+          alt="E-Courtier : louez ou achetez sans courir les quartiers — annonces vérifiées, visites planifiées, frais transparents. Une femme consulte l'application devant une résidence moderne."
+          className="mx-auto block h-auto max-h-[85svh] w-full max-w-xl rounded-[2rem] bg-[#f5f6fd] object-contain shadow-sm"
+          fetchPriority="high"
+          decoding="async"
+        />
+      </picture>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const featured = useListings("featured", { featured: true, page_size: 8 });
   const verified = useListings("verified", { verified: true, page_size: 4, ordering: "newest" });
@@ -122,7 +148,9 @@ export default function HomePage() {
     <>
       <section className="relative overflow-hidden">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 pb-10 pt-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:pt-12">
-          <div>
+          <MobileHero />
+          {/* Ordinateur : accroche textuelle et recherche rapide (sur mobile, la recherche reste dans l'onglet Recherche). */}
+          <div className="hidden lg:block">
             <p className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-sm">
               <BadgeCheck className="size-4" aria-hidden /> Annonces examinées · Visites planifiées · Frais transparents
             </p>
@@ -138,6 +166,7 @@ export default function HomePage() {
           </div>
           <div className="relative hidden lg:block">
             <picture>
+              <source media="(max-width: 1023px)" srcSet={BLANK} />
               <source media="(max-width: 1024px)" srcSet="/hero-dakar-sm.jpg" />
               <img src="/hero-dakar.jpg" alt="Résidence moderne entourée de verdure à Dakar" className="h-[560px] w-full rounded-[2rem] object-cover shadow-xl" fetchPriority="high" />
             </picture>

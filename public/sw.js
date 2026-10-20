@@ -3,7 +3,7 @@
  * publiques de recherche / fiches d'annonces SANS en-tête Authorization (affichées hors ligne).
  * Jamais mis en cache : authentification, justificatifs, paiements, contrats, visites,
  * administration, assistant, ni aucune requête authentifiée ou non-GET. */
-const VERSION = "ec-v1";
+const VERSION = "ec-v2"; // v2 : visuel d'accueil mobile (purge des caches v1)
 const SHELL = `${VERSION}-shell`;
 const STATIC = `${VERSION}-static`;
 const DATA = `${VERSION}-public-data`;
@@ -12,7 +12,7 @@ const NEVER = [/\/api\/v1\/(auth|verification|transactions|contracts|visits|admi
 const MAX_DATA_ENTRIES = 60;
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(SHELL).then((c) => c.addAll(["/", "/favicon.svg", "/manifest.webmanifest", "/hero-dakar-sm.jpg"])).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(SHELL).then((c) => c.addAll(["/", "/favicon.svg", "/manifest.webmanifest", "/accueil-mobile-1024.webp"])).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
