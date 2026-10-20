@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Circle, FileUp, Lock, ReceiptText, ShieldCheck, Trash2 } from "lucide-react";
+import { CheckCircle2, Circle, ExternalLink, FileUp, Lock, ReceiptText, ShieldCheck, Trash2, Wallet } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router";
 import { StatusBadge } from "../components/ui/Badge";
@@ -129,6 +129,24 @@ function DocumentsCard({ app, refresh }: { app: RentalApplication; refresh: () =
   const [file, setFile] = useState<File | null>(null);
   const [replaces, setReplaces] = useState<number | null>(null);
   const [previewError, setPreviewError] = useState<unknown>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [inputKey, setInputKey] = useState(0);
+  const r = app.requirements;
+  // Contrôle immédiat côté navigateur (confort) ; le serveur reste seul juge du contenu réel du fichier.
+  function choose(next: File | null) {
+    if (!next) {
+      setFile(null);
+      setFileError(null);
+      setInputKey((k) => k + 1);
+      return;
+    }
+    const allowed = /\.(pdf|jpe?g|png)$/i.test(next.name) && (!next.type || ["application/pdf", "image/jpeg", "image/png"].includes(next.type));
+    if (!allowed) setFileError(`Format non accepté : ${r.accepted_formats.join(", ")} uniquement.`);
+    else if (next.size > r.max_document_size_mb * 1024 * 1024) setFileError(`Fichier trop lourd (${fileSize(next.size)}) : ${r.max_document_size_mb} Mo maximum.`);
+    else if (next.size === 0) setFileError("Fichier vide.");
+    else setFileError(null);
+    setFile(next);
+  }
   const upload = useMutation({
     mutationFn: () => {
       const form = new FormData();
@@ -138,14 +156,13 @@ function DocumentsCard({ app, refresh }: { app: RentalApplication; refresh: () =
       return api(`/applications/${app.id}/documents/`, { form });
     },
     onSuccess: () => {
-      setFile(null);
+      choose(null);
       setReplaces(null);
       refresh();
     },
   });
   const remove = useMutation({ mutationFn: (id: number) => api(`/applications/documents/${id}/`, { method: "DELETE" }), onSuccess: refresh });
   const preview = (id: number) => openApplicationDocument(id).catch(setPreviewError);
-  const r = app.requirements;
 
   return (
     <Card className="p-5 sm:p-6">
@@ -181,11 +198,25 @@ function DocumentsCard({ app, refresh }: { app: RentalApplication; refresh: () =
       {app.can_edit && (
         <div className="mt-4 space-y-2 border-t border-line pt-4">
           {replaces && <Notice tone="info">Remplacement de la pièce sélectionnée. <button type="button" className="font-semibold underline" onClick={() => setReplaces(null)}>Annuler</button></Notice>}
-          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+          <div className="grid gap-3 sm:grid-cols-2 sm:items-end">
             <Select label="Type de pièce" value={docType} onChange={(e) => setDocType(e.target.value)} options={APPLICATION_DOC_TYPES} />
-            <Input label="Fichier (PDF, JPEG, PNG — 8 Mo max.)" type="file" accept="application/pdf,image/jpeg,image/png" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-            <Button disabled={!file} loading={upload.isPending} onClick={() => upload.mutate()}><FileUp className="size-4" aria-hidden /> {replaces ? "Remplacer" : "Déposer"}</Button>
+            <Input
+              key={inputKey}
+              label={`Fichier (${r.accepted_formats.join(", ")} — ${r.max_document_size_mb} Mo max.)`}
+              type="file"
+              accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
+              onChange={(e) => choose(e.target.files?.[0] ?? null)}
+            />
           </div>
+          {fileError && <p role="alert" className="text-sm font-medium text-red-600">{fileError}</p>}
+          {file && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl bg-surface p-3 text-sm">
+              <span className="min-w-0 flex-1 truncate">Fichier sélectionné : <strong>{file.name}</strong> · {fileSize(file.size)}</span>
+              <button type="button" className="font-semibold text-brand-700" onClick={() => choose(null)}>Changer de fichier</button>
+            </div>
+          )}
+          <Button disabled={!file || !!fileError} loading={upload.isPending} onClick={() => upload.mutate()}><FileUp className="size-4" aria-hidden /> {replaces ? "Remplacer la pièce" : "Envoyer la pièce"}</Button>
+          <p className="text-xs text-muted">Le contenu réel du fichier est vérifié par E-Courtier : un fichier renommé ou d'un autre format est refusé.</p>
           <InlineError error={upload.error} />
         </div>
       )}
@@ -223,6 +254,7 @@ function ReviewCard({ app, onDone }: { app: RentalApplication; onDone: (a: Renta
   const info = useMutation({ mutationFn: () => call("request-info", { message }), onSuccess: (a) => { setMessage(""); onDone(a); } });
   const decide = useMutation({ mutationFn: (decision: "ACCEPTED" | "REJECTED") => call("decision", { decision, reason }), onSuccess: onDone });
   const open = app.status === "SUBMITTED" || app.status === "UNDER_REVIEW";
+  const feeOk = app.payment.fee.status === "CONFIRMED" || app.payment.fee.status === "NOT_REQUIRED";
   return (
     <Card className="space-y-4 p-5 sm:p-6">
       <SectionTitle title="Examen du dossier" />
@@ -234,10 +266,11 @@ function ReviewCard({ app, onDone }: { app: RentalApplication; onDone: (a: Renta
         </div>
       )}
       {app.status === "INFO_REQUESTED" && <Notice tone="info">Complément demandé : en attente du candidat.</Notice>}
+      {open && !feeOk && <Notice tone="info">Acceptation possible après la confirmation des frais de dossier par E-Courtier (statut actuel : {app.payment.fee.status_label.toLowerCase()}).</Notice>}
       <div className="space-y-2 border-t border-line pt-4">
         <Textarea label="Motif de la décision (obligatoire en cas de refus)" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={1000} />
         <div className="flex flex-wrap gap-2">
-          {open && <Button loading={decide.isPending} onClick={() => decide.mutate("ACCEPTED")}>Accepter le dossier</Button>}
+          {open && <Button disabled={!feeOk} loading={decide.isPending} onClick={() => decide.mutate("ACCEPTED")}>Accepter le dossier</Button>}
           <Button variant="secondary" disabled={!reason.trim()} loading={decide.isPending} onClick={() => decide.mutate("REJECTED")}>Refuser le dossier</Button>
         </div>
       </div>
@@ -268,13 +301,65 @@ function NotesCard({ app, refresh }: { app: RentalApplication; refresh: () => vo
   );
 }
 
-function PaymentCard({ app }: { app: RentalApplication }) {
-  const p = app.payment;
-  const tx = p.transaction;
+const FEE_TEXT: Partial<Record<string, string>> = {
+  NOT_STARTED: "Les frais seront à régler après la transmission du dossier.",
+  PENDING: "À régler via Wave.",
+  AWAITING_VERIFICATION: "Paiement en attente de vérification : E-Courtier le rapproche dans Wave Business avant confirmation.",
+  CONFIRMED: "Frais vérifiés et confirmés par E-Courtier.",
+  FAILED: "Paiement non retrouvé : vérifiez la référence ou contactez le support.",
+  CANCELLED: "Frais annulés (dossier refusé).",
+};
+
+function FeeCard({ app, onDone }: { app: RentalApplication; onDone: (a: RentalApplication) => void }) {
+  const fee = app.payment.fee;
+  const [reference, setReference] = useState("");
+  const [checkout, setCheckout] = useState<{ url: string; instructions: string } | null>(null);
+  const start = useMutation({
+    mutationFn: () => api<{ checkout: { url: string; instructions: string }; application: RentalApplication }>(`/applications/${app.id}/fee/start/`, { method: "POST" }),
+    onSuccess: (data) => {
+      setCheckout(data.checkout);
+      onDone(data.application);
+      // Lien fourni par le serveur (jamais codé dans le frontend) ; repli : lien « Rouvrir Wave » ci-dessous.
+      window.open(data.checkout.url, "_blank", "noopener,noreferrer");
+    },
+  });
+  const declare = useMutation({
+    mutationFn: () => api<RentalApplication>(`/applications/${app.id}/fee/declare/`, { body: { provider_reference: reference } }),
+    onSuccess: (a) => { setReference(""); onDone(a); },
+  });
+  const customer = app.my_role === "customer";
+  if (fee.status === "NOT_REQUIRED") return null;
+  const canDeclare = customer && fee.started && ["PENDING", "AWAITING_VERIFICATION", "FAILED"].includes(fee.status);
   return (
     <Card className="space-y-3 p-5 sm:p-6">
-      <SectionTitle title="Règlement" subtitle="État réel du paiement, géré séparément du dossier." action={<ReceiptText className="size-5 text-brand-600" aria-hidden />} />
-      <p className="text-sm">Frais de dossier E-Courtier : <strong>{fcfa(p.fee_amount)}</strong> (montant fixé par la plateforme).</p>
+      <SectionTitle title="Frais de dossier" subtitle="Calculés par E-Courtier ; confirmés uniquement après vérification dans Wave Business." action={<StatusBadge status={fee.status === "AWAITING_VERIFICATION" ? "PENDING" : fee.status === "CONFIRMED" ? "PAID" : fee.status} label={fee.status_label} />} />
+      <p className="text-sm">Montant dû : <strong>{fcfa(fee.amount)}</strong>{fee.reference && <> · référence à indiquer : <span className="font-mono font-semibold">{fee.reference}</span></>}</p>
+      <p className="text-sm text-muted">{FEE_TEXT[fee.status]}</p>
+      {fee.status === "FAILED" && fee.failure_reason && <Notice tone="warning">Motif : {fee.failure_reason}</Notice>}
+      {fee.provider_reference && <p className="text-sm">Référence Wave déclarée : <span className="font-mono">{fee.provider_reference}</span></p>}
+      {customer && fee.payment_problem && <Notice tone="warning">{fee.payment_problem}</Notice>}
+      {customer && fee.can_pay && (
+        <Button variant="wave" loading={start.isPending} onClick={() => start.mutate()}><Wallet className="size-5" aria-hidden /> Payer {fcfa(fee.amount)} avec Wave <ExternalLink className="size-4" aria-hidden /></Button>
+      )}
+      <InlineError error={start.error} />
+      {checkout && <Notice tone="info">{checkout.instructions} <a href={checkout.url} target="_blank" rel="noopener noreferrer" className="font-semibold underline">Rouvrir Wave</a></Notice>}
+      {canDeclare && (
+        <form onSubmit={(e) => { e.preventDefault(); declare.mutate(); }} className="space-y-2 border-t border-line pt-3">
+          <Input label="J'ai payé : identifiant de transaction Wave" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Ex. T_8K2M4QXZ7Y" pattern="[A-Za-z0-9_\-]{6,64}" hint="Visible dans l'historique de votre application Wave. Votre déclaration ne vaut pas confirmation." />
+          <InlineError error={declare.error} />
+          <Button type="submit" variant="secondary" disabled={reference.trim().length < 6} loading={declare.isPending}>Déclarer mon paiement</Button>
+        </form>
+      )}
+    </Card>
+  );
+}
+
+function RentPaymentCard({ app }: { app: RentalApplication }) {
+  const tx = app.payment.transaction;
+  if (!tx && app.my_role !== "customer") return null;
+  return (
+    <Card className="space-y-3 p-5 sm:p-6">
+      <SectionTitle title="Premier loyer" subtitle="Paiement distinct du dossier, suivi dans votre dossier de paiement." action={<ReceiptText className="size-5 text-brand-600" aria-hidden />} />
       {tx ? (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span>Dossier de paiement <span className="font-mono">{tx.reference}</span> · {fcfa(tx.total_amount)}</span>
@@ -283,11 +368,7 @@ function PaymentCard({ app }: { app: RentalApplication }) {
           {app.my_role === "customer" && <Link to={`/paiement/${tx.id}`} className="font-semibold text-brand-700 underline">Voir le paiement</Link>}
         </div>
       ) : (
-        <p className="text-sm text-muted">Aucun paiement en cours pour ce logement.</p>
-      )}
-      {!p.wave_configured && <Notice tone="warning">Le paiement Wave n'est pas configuré sur cet environnement : aucun paiement ne peut être initié.</Notice>}
-      {app.my_role === "customer" && !tx && p.wave_configured && (
-        <Link to={`/paiement?logement=${app.listing.id}`}><Button variant="secondary">Ouvrir le dossier de paiement</Button></Link>
+        <p className="text-sm text-muted">Aucun paiement de loyer en cours pour ce logement.</p>
       )}
     </Card>
   );
@@ -316,6 +397,10 @@ export default function ApplicationPage() {
           <StatusBadge status={app.state} label={app.status === "DRAFT" ? undefined : app.status_label} />
         </div>
         <ListingHeader listing={app.listing} />
+        <p className="text-sm">
+          Destinataire : <strong>{app.responsible.name}</strong> ({app.responsible.role_label.toLowerCase()}{app.responsible.agency_name && ` · ${app.responsible.agency_name}`})
+          {" "}· visite du {formatDate(app.visit_starts_at, true)} (<Link to={`/visites/${app.visit}`} className="font-semibold text-brand-700 underline">voir la visite</Link>)
+        </p>
         <p className="text-sm text-muted">
           {app.submitted_at ? `Transmis le ${formatDate(app.submitted_at, true)}` : "Non transmis"}
           {app.decided_at && ` · décision le ${formatDate(app.decided_at, true)}`}
@@ -326,7 +411,7 @@ export default function ApplicationPage() {
       {app.status === "INFO_REQUESTED" && (
         <Notice tone="warning"><strong>Complément demandé :</strong> {app.info_request_message}</Notice>
       )}
-      {app.status === "ACCEPTED" && <Notice tone="success" icon={<CheckCircle2 className="size-5" aria-hidden />}>Dossier accepté{app.decision_reason && ` — ${app.decision_reason}`}. Le paiement et le contrat suivent leur propre parcours.</Notice>}
+      {app.status === "ACCEPTED" && <Notice tone="success" icon={<CheckCircle2 className="size-5" aria-hidden />}>Dossier accepté{app.decision_reason && ` — ${app.decision_reason}`}. Le paiement du premier loyer et le contrat suivent leur propre parcours.</Notice>}
       {app.status === "REJECTED" && <Notice tone="warning">Dossier refusé — motif : {app.decision_reason}</Notice>}
       {customer && app.status === "DRAFT" && (
         <Notice tone="info" icon={<ShieldCheck className="size-5" aria-hidden />}>Brouillon privé : le propriétaire ou l'agent ne voit rien avant votre transmission explicite.</Notice>
@@ -337,7 +422,8 @@ export default function ApplicationPage() {
       {customer && app.can_edit && <SubmitCard app={app} onDone={update} />}
       {app.my_role === "responsible" && ["SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED"].includes(app.status) && <ReviewCard app={app} onDone={update} />}
       {app.internal_notes !== null && <NotesCard app={app} refresh={refresh} />}
-      <PaymentCard app={app} />
+      <FeeCard app={app} onDone={update} />
+      <RentPaymentCard app={app} />
 
       <Card className="p-5 sm:p-6">
         <SectionTitle title="Historique" />

@@ -275,14 +275,56 @@ export interface RentalApplication extends RentalApplicationSummary {
     missing_documents: string[];
     missing_fields: string[];
     is_complete: boolean;
+    accepted_formats: string[];
+    max_document_size_mb: number;
   };
   payment: {
     fee_amount: number;
     currency: "XOF";
     wave_configured: boolean;
+    /** Frais de dossier : état réel, uniquement confirmé par E-Courtier après rapprochement Wave. */
+    fee: ApplicationFee;
+    /** Paiement du premier loyer (dossier de paiement), indépendant du dossier locatif. */
     transaction: { id: string; reference: string; status: string; status_label: string; total_amount: number; fee_amount: number; is_simulated: boolean; paid_at: string | null } | null;
   };
   my_role: "customer" | "responsible" | "admin";
   internal_notes: { id: number; text: string; author_name: string; created_at: string }[] | null;
   can_edit: boolean;
+  responsible: { name: string; role: string; role_label: string; agency_name: string };
+  visit_starts_at: string;
+}
+
+export type FeeStatus = "NOT_REQUIRED" | "NOT_STARTED" | "PENDING" | "AWAITING_VERIFICATION" | "CONFIRMED" | "FAILED" | "CANCELLED";
+
+export interface ApplicationFee {
+  status: FeeStatus;
+  status_label: string;
+  amount: number;
+  currency: "XOF";
+  reference: string | null;
+  provider_reference: string;
+  declared_at: string | null;
+  confirmed_at: string | null;
+  failure_reason: string;
+  started: boolean;
+  can_pay: boolean;
+  payment_problem: string | null;
+}
+
+export interface AdminFeePayment {
+  id: number;
+  amount: number;
+  status: FeeStatus;
+  status_label: string;
+  reference: string;
+  provider_reference: string;
+  checkout_started_at: string | null;
+  declared_at: string | null;
+  confirmed_at: string | null;
+  failure_reason: string;
+  application_id: string;
+  application_status: string;
+  listing_title: string;
+  customer_name: string;
+  created_at: string;
 }

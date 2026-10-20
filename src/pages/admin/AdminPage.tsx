@@ -12,10 +12,10 @@ import { EmptyState, ErrorState, InlineError, Notice, Skeleton } from "../../com
 import { Pagination, Tabs } from "../../components/ui/Tabs";
 import { api } from "../../lib/api";
 import { fcfa, fileSize, formatDate, ROLE_LABELS } from "../../lib/format";
-import type { OwnerListing, Paginated, Transaction, VerificationRequest } from "../../lib/types";
+import type { AdminFeePayment, OwnerListing, Paginated, Transaction, VerificationRequest } from "../../lib/types";
 import { openPrivateDocument } from "../dashboard/ListingEditorPage";
 
-type Tab = "apercu" | "verifications" | "annonces" | "signalements" | "paiements" | "comptes" | "avis" | "journal";
+type Tab = "apercu" | "verifications" | "annonces" | "signalements" | "paiements" | "frais" | "comptes" | "avis" | "journal";
 
 function useList<T>(key: unknown[], path: string, params: Record<string, string | number | undefined> = {}) {
   return useQuery({ queryKey: ["admin", ...key, params], queryFn: () => api<Paginated<T>>(path, { params }) });
@@ -322,6 +322,55 @@ function Payments() {
   );
 }
 
+/** Rapprochement manuel des frais de dossier : confirmés seulement après vérification dans Wave Business. */
+function DossierFees() {
+  const qc = useQueryClient();
+  const [status, setStatus] = useState("AWAITING_VERIFICATION");
+  const [refs, setRefs] = useState<Record<number, string>>({});
+  const q = useList<AdminFeePayment>(["application-fees"], "/admin/application-fees/", { status: status || undefined });
+  const done = () => qc.invalidateQueries({ queryKey: ["admin", "application-fees"] });
+  const confirm = useMutation({ mutationFn: ({ id, reference }: { id: number; reference: string }) => api(`/admin/application-fees/${id}/confirm/`, { body: { provider_reference: reference } }), onSuccess: done });
+  const reject = useMutation({
+    mutationFn: (id: number) => {
+      const reason = window.prompt("Motif (visible par le client) :") ?? "";
+      return reason.trim() ? api(`/admin/application-fees/${id}/reject/`, { body: { reason } }) : Promise.resolve(null);
+    },
+    onSuccess: done,
+  });
+  return (
+    <div className="space-y-4">
+      <Select label="Statut" value={status} onChange={(e) => setStatus(e.target.value)} options={[{ value: "AWAITING_VERIFICATION", label: "À vérifier" }, { value: "PENDING", label: "À payer" }, { value: "CONFIRMED", label: "Confirmés" }, { value: "FAILED", label: "Non retrouvés" }, { value: "CANCELLED", label: "Annulés" }]} placeholder="Tous" className="max-w-xs" />
+      <Notice tone="info">Confirmez uniquement après avoir retrouvé, dans Wave Business, un paiement du montant exact avec l'identifiant déclaré. Ni le clic, ni le retour du client, ni sa déclaration ne prouvent le paiement.</Notice>
+      <InlineError error={confirm.error ?? reject.error} />
+      <Loading q={q}>
+        {() => q.data!.results.length === 0 ? <EmptyState title="Aucun frais dans ce statut" /> : (
+          <ul className="space-y-3">
+            {q.data!.results.map((f) => (
+              <li key={f.id}>
+                <Card className="space-y-3 p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-bold"><span className="font-mono">{f.reference}</span> — {f.listing_title}</p>
+                    <StatusBadge status={f.status === "AWAITING_VERIFICATION" ? "PENDING" : f.status === "CONFIRMED" ? "PAID" : f.status} label={f.status_label} />
+                  </div>
+                  <p className="text-sm text-muted">{f.customer_name} · <strong className="text-ink">{fcfa(f.amount)}</strong>{f.declared_at && ` · déclaré le ${formatDate(f.declared_at, true)}`}</p>
+                  {f.provider_reference && <p className="text-sm">Référence Wave déclarée : <span className="font-mono font-semibold">{f.provider_reference}</span></p>}
+                  {["AWAITING_VERIFICATION", "PENDING", "FAILED"].includes(f.status) && (
+                    <div className="flex flex-wrap items-end gap-2">
+                      <Input label="Identifiant de transaction Wave vérifié" value={refs[f.id] ?? f.provider_reference} onChange={(e) => setRefs({ ...refs, [f.id]: e.target.value })} className="min-w-60 flex-1" />
+                      <Button disabled={!(refs[f.id] ?? f.provider_reference)} loading={confirm.isPending} onClick={() => confirm.mutate({ id: f.id, reference: refs[f.id] ?? f.provider_reference })}>Confirmer les frais</Button>
+                      {f.status === "AWAITING_VERIFICATION" && <Button variant="ghost" onClick={() => reject.mutate(f.id)}>Paiement non retrouvé</Button>}
+                    </div>
+                  )}
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Loading>
+    </div>
+  );
+}
+
 interface AdminUser { id: number; email: string; first_name: string; last_name: string; phone: string; role: string; is_active: boolean; date_joined: string; last_login: string | null }
 
 function Accounts() {
@@ -429,6 +478,7 @@ const TABS: { value: Tab; label: string }[] = [
   { value: "annonces", label: "Annonces" },
   { value: "signalements", label: "Signalements" },
   { value: "paiements", label: "Paiements" },
+  { value: "frais", label: "Frais de dossier" },
   { value: "comptes", label: "Comptes" },
   { value: "avis", label: "Avis" },
   { value: "journal", label: "Journal" },
@@ -449,6 +499,7 @@ export default function AdminPage() {
       {tab === "annonces" && <ListingsModeration />}
       {tab === "signalements" && <Reports />}
       {tab === "paiements" && <Payments />}
+      {tab === "frais" && <DossierFees />}
       {tab === "comptes" && <Accounts />}
       {tab === "avis" && <ReviewsModeration />}
       {tab === "journal" && <AuditLog />}
