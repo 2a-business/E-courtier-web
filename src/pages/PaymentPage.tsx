@@ -44,7 +44,8 @@ function Breakdown({ amountLabel, amount, fee, total }: { amountLabel: string; a
       <div className="flex justify-between gap-4"><dt className="text-muted">{amountLabel}</dt><dd className="font-semibold">{fcfa(amount)}</dd></div>
       <div className="flex justify-between gap-4">
         <dt className="text-muted">Frais de dossier E-Courtier <span className="block text-xs">(distincts du montant du logement)</span></dt>
-        <dd className="font-semibold">{fcfa(fee)}</dd>
+        {/* Location : les frais sont réglés une seule fois, dans le dossier locatif. */}
+        <dd className="font-semibold">{fee > 0 ? fcfa(fee) : "Réglés via le dossier locatif"}</dd>
       </div>
       <div className="flex justify-between gap-4 border-t border-dashed border-line pt-3 text-base"><dt className="font-bold">Total à régler</dt><dd className="font-extrabold">{fcfa(total)}</dd></div>
     </dl>

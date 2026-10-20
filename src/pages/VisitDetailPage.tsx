@@ -94,7 +94,7 @@ export default function VisitDetailPage() {
             <Button loading={openApplication.isPending} onClick={() => openApplication.mutate()}>Constituer mon dossier</Button>
           </div>
           <InlineError error={openApplication.error} />
-          <p className="text-sm text-muted">Paiement Wave (frais de dossier affichés séparément) : <Link to={`/paiement?logement=${v.listing.id}`} className="font-semibold text-brand-700 underline">ouvrir le dossier de paiement</Link>.</p>
+          <p className="text-sm text-muted">Paiement du premier loyer via Wave (les frais de dossier se règlent dans le dossier locatif) : <Link to={`/paiement?logement=${v.listing.id}`} className="font-semibold text-brand-700 underline">ouvrir le dossier de paiement</Link>.</p>
         </Card>
       )}
 
