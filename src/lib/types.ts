@@ -183,7 +183,11 @@ export interface ChatResponse {
   reply: string;
   criteria: Record<string, unknown>;
   results: ListingCard[];
+  /** Nombre total d'annonces correspondant exactement (peut dépasser le nombre de cartes affichées). */
+  total: number;
   alternatives: ListingCard[];
+  /** Critères élargis pour obtenir les alternatives (vide s'il n'y en a pas). */
+  relaxed: string[];
   mode: "llm" | "rules" | "fallback";
   remaining_today: number;
 }
