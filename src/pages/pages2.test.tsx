@@ -60,6 +60,36 @@ describe("Accueil", () => {
   });
 });
 
+describe("Accueil mobile", () => {
+  it("affiche le visuel promotionnel sans formulaire ni second Hero, et garde la recherche sur ordinateur", async () => {
+    mockFetch((url) => (url.pathname.endsWith("/search/listings/") ? { body: page([]) } : url.pathname.endsWith("/search/locations/") ? { body: [] } : undefined));
+    const { container } = renderRoute(<HomePage />);
+    const visual = await screen.findByAltText(/E-Courtier : louez ou achetez sans courir les quartiers/);
+    const mobile = visual.closest(".lg\\:hidden") as HTMLElement;
+    expect(mobile).not.toBeNull();
+    // Image entière (contain), pleine largeur, dimensions réservées (pas de décalage au chargement).
+    expect(visual).toHaveClass("w-full", "object-contain");
+    expect(visual).toHaveAttribute("width", "1024");
+    expect(visual).toHaveAttribute("height", "1536");
+    expect(visual).toHaveAttribute("fetchpriority", "high");
+    const sources = [...mobile.querySelectorAll("source")];
+    expect(sources[0]).toHaveAttribute("media", "(min-width: 1024px)"); // rien n'est téléchargé sur ordinateur
+    expect(sources[1].getAttribute("srcset")).toContain("/accueil-mobile-640.webp 640w");
+    // Aucun formulaire de recherche dans le rendu mobile ; le formulaire existe dans le Hero ordinateur.
+    expect(within(mobile).queryByRole("form")).toBeNull();
+    expect(within(mobile).queryByText("Louer")).toBeNull();
+    const desktop = screen.getByRole("form", { name: "Recherche rapide" }).closest(".hidden.lg\\:block");
+    expect(desktop).not.toBeNull();
+    // Un seul titre principal par taille d'écran : sr-only sur mobile, visible sur ordinateur.
+    const titles = [...container.querySelectorAll("h1")];
+    expect(titles).toHaveLength(2);
+    expect(mobile.contains(titles.find((h) => h.classList.contains("sr-only"))!)).toBe(true);
+    expect(desktop!.contains(titles.find((h) => !h.classList.contains("sr-only"))!)).toBe(true);
+    // Le visuel ordinateur n'est pas téléchargé sur mobile.
+    expect(container.querySelector('img[src="/hero-dakar.jpg"]')!.closest("picture")!.querySelector("source")).toHaveAttribute("media", "(max-width: 1023px)");
+  });
+});
+
 describe("Fiche logement", () => {
   it("affiche le badge, son avertissement, les frais et masque l'adresse exacte", async () => {
     mockFetch((url) => {
